@@ -157,6 +157,7 @@ def obtenir_les_mots_retenus(temps_ecriture: float, mots_a_retenir: list[str],
             print("erreur")
         if len(ensemble_a_retenir) == 0:
             break
+        print("")
     return mots_retenus
 
 
@@ -169,6 +170,7 @@ def afficher_mots_retenus_et_non_retenus(mots_retenus: list[str], mots_a_retenir
             print("\n".join(f"\t{e}" for e in liste))
     ensemble_retenus = set(mots_retenus)
     mot_non_retenus = list(m for m in mots_a_retenir if m not in ensemble_retenus)
+    print()
     afficher_liste(mots_retenus, "Mot retenus")
     afficher_liste(mot_non_retenus, "Mot non retenus")
     print()
@@ -185,10 +187,3 @@ def memorisation(nombre_de_mot: int, temps_affichage: float, temps_ecriture: flo
 
 memorisation(nombre_de_mot=NOMBRE_MOTS_A_RETENIR, temps_affichage=TEMPS_AFFICHAGE, 
              temps_ecriture=TEMPS_ECRITURE, nombre_de_difference_max=NOMBRE_DIFFERENCE_MAX)
-
-
-
-
-
-
-
