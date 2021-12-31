@@ -5,10 +5,12 @@ from random import sample
 from time import sleep, time
 from multiprocessing.pool import ThreadPool
 import os
+from typing import Iterable
 
-NOMBRE_MOTS_A_RETENIR = 30
+NOMBRE_MOTS_A_RETENIR = 5
 TEMPS_AFFICHAGE = 5
 TEMPS_ECRITURE = 20
+NOMBRE_DIFFERENCE_MAX = 2
 
 MOTS = ['abandonner', 'accepter', 'accompagner', 'acheter', 'adorer', 'agir', 'aider', 'aimer', 
 'ajouter', 'aller', 'amener', 'amuser', 'annoncer', 'apercevoir', 'apparaître', 'appeler', 
@@ -55,7 +57,7 @@ MOTS = ['abandonner', 'accepter', 'accompagner', 'acheter', 'adorer', 'agir', 'a
 'bout', 'bruit', 'bureau', 'café', 'camp', 'capitaine', 'chat', 'chemin', 'chéri', 'cheval', 
 'cheveu', 'chien', 'ciel', 'client', 'cœur', 'coin', 'colonel', 'compte', 'copain', 'côté', 'coup', 
 'courant', 'début', 'départ', 'dieu', 'docteur', 'doigt', 'dollar', 'doute', 'droit', 'effet', 
-'endroit', 'ennemi', 'escalier', 'esprit', 'état', 'être', 'exemple', 'fait', 'film', 'flic', 
+'endroit', 'ennemi', 'escalier', 'esprit', 'état', 'exemple', 'fait', 'film', 'flic', 
 'fond', 'français', 'frère', 'front', 'garçon', 'général', 'genre', 'goût', 'gouvernement', 'grand',
 'groupe', 'haut', 'homme', 'honneur', 'hôtel', 'instant', 'intérêt', 'intérieur', 'jardin', 'jour', 
 'journal', 'lieu', 'long', 'maître', 'mari', 'mariage', 'matin', 'médecin', 'mètre', 'milieu', 
@@ -75,6 +77,14 @@ MOTS = ['abandonner', 'accepter', 'accompagner', 'acheter', 'adorer', 'agir', 'a
 'mort', 'noir', 'nouveau', 'pareil', 'petit', 'plein', 'premier', 'prêt', 'prochain', 'quoi',
 'seul', 'tout', 'vert', 'vivant']
 
+CHARACTERES_SPECIAUX: dict[int, str] = {219:'U', 238:'i', 207:'I', 200:'E', 212:'O', 217:'U', 
+252:'u', 218:'U', 234:'e', 220:'U', 193:'A', 201:'E', 255:'y', 251:'u', 202:'E', 210:'O', 216:'O',
+229:'a', 198:'AE', 231:'c', 239:'i', 214:'O', 194:'A', 242:'o', 192:'A', 243:'o', 199:'C', 196:'A',
+206:'I', 203:'E', 227:'a', 245:'o', 235:'e', 249:'u', 204:'I', 253:'y', 236:'i', 197:'A', 232:'e',
+244:'o', 211:'O', 233:'e', 221:'Y', 228:'a', 246:'o', 224:'a', 205:'I', 208:'D', 195:'A', 230:'ae',
+226:'a', 250:'u', 209:'N', 241:'n', 223:'B', 225:'a', 213:'O', 237:'i'}
+
+
 def obtenir_et_afficher_les_mots_a_retenir(nombre_de_mots: int, temps_affichage: float):
     mots_a_retenir = sample(MOTS, nombre_de_mots)
     for (i, mot) in enumerate(mots_a_retenir):
@@ -92,28 +102,89 @@ def obtenir_mot_avec_temps(temps: float, message_debut: str = "", message_stop: 
         thread.terminate()
         print(message_stop)
 
-def obtenir_les_mots_ecrits(temps_ecriture: float):
-    mots_ecrits: list[str] = list()
+def obtenir_nombre_differences(mot1: str, mot2: str):
+    matrice = [[0 for _ in range(len(mot2) + 1)] for _ in range(len(mot1) + 1)]
+    for i in range(len(mot1) + 1):
+        matrice[i][0] = i
+    for j in range(len(mot2) + 1):
+        matrice[0][j] = j
+    for i in range(1, len(mot1) + 1):
+        for j in range(1, len(mot2) + 1):
+            if (mot1[i-1] == mot2[j-1]):
+                matrice[i][j] = matrice[i-1][j-1]
+            else:
+                matrice[i][j] = min(matrice[i][j-1], matrice[i-1][j], matrice[i-1][j-1]) + 1
+    return matrice[-1][-1]
+
+def convertir_en_ascii_minuscule(chaine: str):
+        def ascii_char(charactere: str):
+            numero_ascii = ord(charactere)
+            if numero_ascii < 128:
+                return charactere
+            try:
+                return CHARACTERES_SPECIAUX[numero_ascii]
+            except KeyError:
+                return " "
+        return " ".join("".join(ascii_char(c) for c in chaine.lower()).split())
+
+def obtenir_a_retenir_proche(mot_ecrit: str, mots_a_retenir: Iterable[str], nombre_difference_max: int):
+    mot_ecrit = convertir_en_ascii_minuscule(mot_ecrit)
+    for mot_a_retenir in mots_a_retenir:
+        mot_a_retenir_convertit = convertir_en_ascii_minuscule(mot_a_retenir)
+        if obtenir_nombre_differences(mot_ecrit, mot_a_retenir_convertit) <= nombre_difference_max:
+            return mot_a_retenir
+    return None
+
+def obtenir_les_mots_retenus(temps_ecriture: float, mots_a_retenir: list[str], 
+            nombre_de_difference_max: int):
+    mots_retenus: list[str] = list()
+    ensemble_a_retenir = set(mots_a_retenir)
     while True:
         temps_avant_ecriture = time()
         mot = obtenir_mot_avec_temps(temps=temps_ecriture, 
                                      message_debut=f"[{round(temps_ecriture, 1)}s] >>> ", 
-                                     message_stop=" (stop)")
+                                     message_stop="(stop)")
         temps_apres_ecriture = time()
         temps_ecriture -= temps_apres_ecriture - temps_avant_ecriture
         if mot is None:
-            return mots_ecrits
-        mots_ecrits.append(mot)
+            break
+        mot_proche = obtenir_a_retenir_proche(mot, ensemble_a_retenir, nombre_de_difference_max)
+        if mot_proche is not None:
+            ensemble_a_retenir.remove(mot_proche)
+            mots_retenus.append(mot_proche)
+            print("ok" + (f" ({mot_proche})" if mot_proche != mot else ""))
+        else:
+            print("erreur")
+        if len(ensemble_a_retenir) == 0:
+            break
+    return mots_retenus
 
-def memorisation(nombre_de_mot: int, temps_affichage: float, temps_ecriture: float):
+
+def afficher_mots_retenus_et_non_retenus(mots_retenus: list[str], mots_a_retenir: list[str]):
+    def afficher_liste(liste: list[str], nom: str):
+        print(f"\n -- {nom} ({len(liste)}) -- ")
+        if len(liste) == 0:
+            print("\t(aucun)")
+        else:
+            print("\n".join(f"\t{e}" for e in liste))
+    ensemble_retenus = set(mots_retenus)
+    mot_non_retenus = list(m for m in mots_a_retenir if m not in ensemble_retenus)
+    afficher_liste(mots_retenus, "Mot retenus")
+    afficher_liste(mot_non_retenus, "Mot non retenus")
+    print()
+
+def memorisation(nombre_de_mot: int, temps_affichage: float, temps_ecriture: float, 
+            nombre_de_difference_max: int):
     mots_a_retenir = obtenir_et_afficher_les_mots_a_retenir(nombre_de_mots=nombre_de_mot,
                                                             temps_affichage=temps_affichage)
-    obtenir_les_mots_ecrits(temps_ecriture=temps_ecriture)
+    mot_retenus = obtenir_les_mots_retenus(temps_ecriture=temps_ecriture, 
+                                           mots_a_retenir=mots_a_retenir, 
+                                           nombre_de_difference_max=nombre_de_difference_max)
+    afficher_mots_retenus_et_non_retenus(mots_retenus=mot_retenus, mots_a_retenir=mots_a_retenir)
 
-    print("\n\n -- Mot a retenir -- ")
-    print("\n".join(mots_a_retenir))
 
-memorisation(nombre_de_mot=NOMBRE_MOTS_A_RETENIR, temps_affichage=TEMPS_AFFICHAGE, temps_ecriture=TEMPS_ECRITURE)
+memorisation(nombre_de_mot=NOMBRE_MOTS_A_RETENIR, temps_affichage=TEMPS_AFFICHAGE, 
+             temps_ecriture=TEMPS_ECRITURE, nombre_de_difference_max=NOMBRE_DIFFERENCE_MAX)
 
 
 
